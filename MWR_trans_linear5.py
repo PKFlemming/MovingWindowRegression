@@ -1,4 +1,26 @@
-# Front end of MWR. Driver code. Equivalent to GDR_2_2_clean.
+# Front end of MWR. Driver code. Equivalent to GDR_2_2_clean (internal dev reference)
+
+"""
+Purpose:
+Assess spatial variation in regression coefficients. Originally the regressions explored the relationship between
+density of solar energy generation (MW of installed capacity per unit area) and various possible siting criteria such as
+solar irradiance, population density and atmospheric dust levels
+Mechanism:
+MWR (Moving Window Regression) is like a simpler version of GWR (Geographically Weighted Regression). It takes map data
+for a dependent variable Y and some number of independent variables X1, X2...Xn. Data format is described below. The
+arrays in have the shape of the map data, i.e. each array could be mapped directly onto the map using its i,j
+coordinates in the array as lon and lat (with appropriate scaling and translation constants).
+User specifies a bandwidth
+bw and a spacing sp. The code then scrolls through the Y and X1...Xn arrays, starting in the top left corner and taking
+for each variable a square subarray corresponding to a map "window" of edge length bw. It runs a linear regression on
+these subarrays and writes the regression data (r2, pvalue, coefficients etc.) out to csv. It then moves to the right by
+a distance equal to the specified spacing and takes a new set of subarrays (the next window). It continues along the row
+until it reaches the end, then moves down by sp and starts again at the beginning of the next row.
+
+Note: Originally written in MatLab, and I'm still in the process of tweaking the translation, so there are a bunch of print
+calls and #TODOs that can be removed. I'll upload a clean version when it's ready.
+"""
+
 
 from MWRhelpers5 import txtToArray, makeheaders, regressout
 from math import floor
@@ -9,9 +31,12 @@ import pandas as pd
 ### INPUT BLOCK ###
 # enter file path info for input/output data
 inOutPath = r"D:\UKuni\3rdYr\Project\GIS_data\DissPy\Regression\resampled_asciis\snap_15_500_full"
-MWRtoPypath = r"D:\UKuni\3rdYr\Project\GIS_data\DissPy\Regression\MWRtoPy"
+
+# filenamearray is an array of the files to use as input for the regressions. The first is the y (dependent) variable.
+# all the rest are candidate x (independent) variables. Files are all in the folder pointed to by inOutPath.
+# Variables to be excluded are commented out.
 filenamearray = [
-    'pv',  # original var name "PV", not "SEG". Check back-compatibility
+    'pv',  # first
     # 'L10pv',
     'GTI',
     'aodb',
@@ -31,13 +56,12 @@ filenamearray = [
 
 windowtest = 0 # used to toggle values for python translation testing
 
-batchtag = "_15_500_full.txt" # invariant for each group of input files
+batchtag = "_15_500_full.txt" # invariant tag for each group of input files
 if windowtest == 1:
     batchtag = '.txt'; # used to check windowing during translation from matlab code
 
-ncheckvar = 1 # which of the vars you want exported as a checkval
-               # to doublecheck the imported points are in the right place
-               # on the map. Y is 0, X1 is 1, Xn is n
+ncheckvar = 1 # which of the vars you want exported as a checkval to doublecheck the imported points are in the right
+              # place on the map. Y is 0, X1 is 1, Xn is n
 
 # path to write the data out
 outpath = r"D:\UKuni\3rdYr\Project\GIS_data\DissPy\Regression\resampled_asciis\snap_15_500_full\GDR_logpv"
@@ -106,7 +130,7 @@ outfile = join(outpath, outname)
 # the output csv. It also writes the fixed headers for model stats.
 makeheaders(filenamearray, ncheckvar, outfile)
 
-### this (including the makeheaders helper) gets us up to line 113 in GDR_2_2_clean.m ###
+### this (including the makeheaders helper) gets us up to line 113 in GDR_2_2_clean.m (internal dev ref) ###
 
 # next we convert bandwidth and spacing from km to number of cells:
 [bw, sp] = [val * 1000 / cellx for val in [bw, sp]]          # cellx = celly, so can use either
@@ -131,10 +155,6 @@ print(f"n_cols, n_rows = {n_cols, n_rows}") # debug comment: same n_cols, n_rows
 # Note that for these n subarray calcs it's necessary first to subtract the bandwidth from the grid dimensions-
 # otherwise, when the top left of the subarray gets close to the bottom/right of the map, the bottom/right of the focal
 # window is off the edge.
-
-# Now we make counters to help us iterate TODO: are these no longer needed?
-i = 0 # counter for x direction
-j = 0 # counter for y direction
 
 # subx_, suby_, sp and bw are all numbers of grid cells on the map. Our arrays of datapoints directly reflect the grids
 # of cells, so we can now use subx_, suby_ etc. to index into these arrays as if we were moving a window around the map
@@ -167,7 +187,7 @@ for j in range(n_rows):                      # go row by row till we hit the tar
                 print(subarr.astype(int))
             # print(arrOfSubarrs.shape)
 
-        #### this gets us up to line 155 in GDR_2_2_clean.m ####
+        #### this gets us up to line 155 in GDR_2_2_clean.m (internal dev ref)####
 
         # Before processing the subarrays to run the regression, we check how many NoData values (-9999) there are.
         # Because the map data is preprocessed to make all arrays perfectly coterminous, we only have to check one,
@@ -195,17 +215,14 @@ for j in range(n_rows):                      # go row by row till we hit the tar
         hstackedSubarrs_in = np.hstack(subarrs_in)
 
         # note that, bc the windows are square, i = j = bw/(linear resolution in km)
-        #### this gets us to line 191 in in GDR_2_2_clean.m ####
+        #### this gets us to line 191 in in GDR_2_2_clean.m (internal dev ref)####
 
         # now we make this a dataframe, bc currently that's what the backstep function is set up to accept as input
         # TODO: make more flexible/consistent/simple
         subarrsDF = pd.DataFrame(data = hstackedSubarrs_in,
                                  columns = filenamearray)
         # subarrsDF has been checked manually against subarrs_in in MatLab using dummy data, and is identical
-        # if windowtest == 1:
-        #     print(f"\nprinting subarrsDF for j (row) = {j}; i (col) = {i} (matlab: {j+1},{i+1}): \n{subarrsDF.astype(int)} \nend subarrsDF \n")
-        #     windowtestcsv = join(MWRtoPypath, "subarrscompare_py_1.csv")
-        #     subarrsDF.to_csv(windowtestcsv, mode='a', header=False) # used for debugging; can remove when done
+
         # Now we get the lat and lon coords of the centre of our subarray so we can locate it on the map again. Mean of
         # edge vals gets us central cell; -0.5 gets us to centre of cell; timesing by cell dims converts to distance on map.
 
