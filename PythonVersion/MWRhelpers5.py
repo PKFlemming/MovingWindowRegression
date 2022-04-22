@@ -90,7 +90,7 @@ def backStep(y, X, thold=0.05, roundto=None,verbosity=None):
                 # print(f"printing x: {x}")
                 xparams = xsdict[x]
                 xpval = xparams["pval"]
-                if xpval == max(pvalsWOConst): # TODO: surely more efficient way to do this? "if ismax..." or sth. idx max?
+                if xpval == max(pvalsWOConst): # TODO: surely more efficient way to do this? "if ismax..." or sth. idx max? argmax?
                     X = X.drop(columns=x)
                     if verbosity == "verbose":
                         print(f"\nremoving variable '{x}' because its pval = {round(xpval,3)} > {thold}\n")
